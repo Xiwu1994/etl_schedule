@@ -6,6 +6,7 @@ import os
 from dateutil import DateUtil
 import re
 import yaml
+import datetime
 
 
 class YamlParser(object):
@@ -105,6 +106,16 @@ class YamlParser(object):
                 sql = sql.replace(key, self.vars_map(var, default_value, init_day, format))
         return sql
 
+    def replace_mysql_db(self, mysql_db, init_day):
+        """
+        处理 mysql 按天分表
+        """
+        if mysql_db.startswith("beeper2_location.point_"):
+            process_day = datetime.datetime.strptime(init_day, '%Y-%m-%d') + datetime.timedelta(days=-1)
+            process_day = datetime.datetime.strftime(process_day, '%Y_%m_%d')
+            mysql_db = mysql_db.replace("${yesterday}", process_day)
+        return mysql_db
+
     def export_command(self, python_path, project_path, command_key, command_value, init_day):
         mysql2hive = project_path + '/export/mysql2hive.py'
         mongo2hive = project_path + '/export/mongo2hive.py'
@@ -116,7 +127,9 @@ class YamlParser(object):
         if command_key == 'mysql2hive':
             command_list.append(mysql2hive)
             command_list.append("--from")
-            command_list.append(command_value['mysql_db'])
+            # mysql 分表处理
+            mysql_db = self.replace_mysql_db(command_value['mysql_db'], init_day)
+            command_list.append(mysql_db)
             command_list.append("--to")
             command_list.append(command_value['hive_db'])
             if command_value.has_key("include_columns") and command_value['include_columns']:
